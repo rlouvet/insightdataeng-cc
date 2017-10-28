@@ -1,6 +1,11 @@
 #!/usr/bin/env python
 # File with helper functions
 
+def line_count(fname):
+    with open(fname) as f:
+        for i, l in enumerate(f):
+            pass
+    return i + 1
 
 def keys_exists(element, *keys):
     '''
