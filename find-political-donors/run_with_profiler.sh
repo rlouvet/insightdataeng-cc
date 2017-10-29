@@ -5,4 +5,4 @@
 #python ./src/find_political_donors.py ./input/itcont.txt ./output/medianvals_by_zip.txt ./output/medianvals_by_date.txt
 
 python -m cProfile -o ./profiling/profile_data.pyprof ./src/find_political_donors.py ./input/itcont_1000.txt ./output/medianvals_by_zip.txt ./output/medianvals_by_date.txt
-pyprof2calltree -i ./profiling/profile_data.pyprof
+pyprof2calltree -i ./profiling/profile_data.pyprof -o ./profiling/profile_data.pyprof.stats
