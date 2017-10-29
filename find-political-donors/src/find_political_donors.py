@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+	#!/usr/bin/env python
 # First version of the project for Insight Data Engineering Coding Challenge
 # This version is not handling advanced stream processing, it is just reading from
 # one pipe-separated flat file.
@@ -16,13 +16,9 @@ import helper as hl
 
 # ASSUMPTION: these path are not empty and lead to valid files
 input_path, output_zip_path, output_date_path = str(sys.argv[1]), str(sys.argv[2]), str(sys.argv[3])
-print('input_path: ' + input_path)
-print('output_zip_path: ' + output_zip_path)
-print('output_date_path: ' + output_date_path)
 
 # Getting file lenght (total lines count)
 linecount = hl.line_count(input_path)
-print("Line count:" + str(linecount))
 
 # One output write every tenth of the file
 modulo = linecount // 10
@@ -37,7 +33,7 @@ buffer_dict, zip_dict, date_dict = dict(), dict(), dict()
 with open(input_path, 'r') as inputf:
 
 	for line_num, line in enumerate(inputf):
-		print("=== Processing line: " + str(line_num))
+
 		#ASSUMPTION: we assume that each line has the expected format
 		#i.e. 21 pipe-separated values with right type (int / str) and right mapping
 		line = line.split('|')
@@ -73,7 +69,6 @@ with open(input_path, 'r') as inputf:
 		date_output_buffer = []
 
 		for record in buffer_list:
-			print("len(buffer_list)" + str(len(buffer_list)))
 
 			# Testing existence of the ZIP output file primary key (CMTE_ID, ZIP_CODE)
 			# Using key by concatenating CMTE_ID & ZIP_CODE rather than using nested dictionnaries
@@ -82,12 +77,10 @@ with open(input_path, 'r') as inputf:
 			date_key = '|'.join([record['CMTE_ID'], record['TRANSACTION_DT']])
 
 			if not hl.keys_exists(zip_dict, zip_key):
-				print("Key does not exist, creating it: " + str(zip_key))
 				zip_dict[zip_key] = {'RUN_LIST': [], 'RUN_MED': 0, 'TRA_COUNT': 0, 'TRA_SUM': 0}
 
 			# Testing existence of the DATE output file primary key (CMTE_ID, TRANSACTION_DT)
 			if not hl.keys_exists(date_dict, date_key):
-				print("Key does not exist, creating it: " + str(date_key))
 				date_dict[date_key] = {'RUN_LIST': [], 'RUN_MED': 0, 'TRA_COUNT': 0, 'TRA_SUM': 0}
 			
 
@@ -131,11 +124,3 @@ with open(input_path, 'r') as inputf:
 			for date_record in date_output_buffer:
 				outputdatef.write('|'.join(str(val) for val in date_record))
 				outputdatef.write('\r\n')
-
-		
-
-# Erase when project is finalized
-print("zip_dict:")
-print(json.dumps(zip_dict, indent = 2))
-print("date_dict:")
-print(json.dumps(date_dict, indent = 2))
