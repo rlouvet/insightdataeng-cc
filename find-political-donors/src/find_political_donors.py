@@ -21,15 +21,13 @@ input_path, output_zip_path, output_date_path = str(sys.argv[1]), str(sys.argv[2
 linecount = hl.line_count(input_path)
 
 # One output write every N records
-write_freq = 100
+write_freq = 50000
 
 
 buffer_list = []
 buffer_dict, zip_dict, date_dict = dict(), dict(), dict()
 
 # === Looping over the input file ===
-
-# IMPROVEMENT: Read the input file in batches and not 'all at once'
 
 with open(input_path, 'r') as inputf:
 
@@ -63,9 +61,11 @@ with open(input_path, 'r') as inputf:
 		# and clean the buffer variables to avoid memory overflow
 		if line_num == (linecount - 1) or line_num % write_freq == 0:
 
+
 			# === Computing agregations === TODO: Watchout for the indentation here!
-			print(">>Computing agregations")
-			print("buffer_list size is: " + str(len(buffer_list)))
+			avancement = int(float(line_num) / float(linecount) * 100)
+			print(">>(" + str(avancement) + "%)>>Computing agregations")
+			print(">>current buffer_list size is: " + str(len(buffer_list)))
 
 			# First add the records from the parsing buffer then compute and finally dump in output buffer
 			zip_output_buffer_line = []
@@ -91,13 +91,13 @@ with open(input_path, 'r') as inputf:
 
 				# Compute ZIP count and sum
 				zip_dict[zip_key]['RUN_LIST'].append(record['TRANSACTION_AMT'])
+				zip_dict[zip_key]['RUN_LIST'] = sorted(zip_dict[zip_key]['RUN_LIST'])
 				zip_dict[zip_key]['RUN_MED'] = int(round(np.median(zip_dict[zip_key]['RUN_LIST'])))
 				zip_dict[zip_key]['TRA_COUNT'] += 1
 				zip_dict[zip_key]['TRA_SUM'] += record['TRANSACTION_AMT']
 
 				# Compute DATE count and sum
 				date_dict[date_key]['RUN_LIST'].append(record['TRANSACTION_AMT'])
-				date_dict[date_key]['RUN_MED'] = int(round(np.median(date_dict[date_key]['RUN_LIST'])))
 				date_dict[date_key]['TRA_COUNT'] += 1
 				date_dict[date_key]['TRA_SUM'] += record['TRANSACTION_AMT']
 
@@ -109,8 +109,12 @@ with open(input_path, 'r') as inputf:
 			# Empy buffer
 			buffer_dict = {}
 			buffer_list = []
-		
+			
+
+
 			for date_key in date_dict:
+				date_dict[date_key]['RUN_LIST'] = sorted(date_dict[date_key]['RUN_LIST'])
+				date_dict[date_key]['RUN_MED'] = int(round(np.median(date_dict[date_key]['RUN_LIST'])))
 				date_output_buffer_line = [date_key, date_dict[date_key]['RUN_MED'], date_dict[date_key]['TRA_COUNT'],\
 				date_dict[date_key]['TRA_SUM']]
 				date_output_buffer.append(date_output_buffer_line)
