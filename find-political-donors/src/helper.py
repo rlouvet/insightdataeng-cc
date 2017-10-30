@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # File with helper functions
+import collections
 
 def line_count(fname):
     with open(fname) as f:
@@ -11,7 +12,7 @@ def keys_exists(element, *keys):
     '''
     Check if *keys (nested) exists in `element` (dict).
     '''
-    if type(element) is not dict:
+    if (type(element) is not dict) and (type(element) is not collections.OrderedDict):
         raise AttributeError('keys_exists() expects dict as first argument.')
     if len(keys) == 0:
         raise AttributeError('keys_exists() expects at least two arguments, one given.')

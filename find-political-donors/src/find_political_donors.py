@@ -1,4 +1,4 @@
-	#!/usr/bin/env python
+#!/usr/bin/env python
 # First version of the project for Insight Data Engineering Coding Challenge
 # This version is not handling advanced stream processing, it is just reading from
 # one pipe-separated flat file.
@@ -7,6 +7,7 @@
 # Imports
 import sys, os
 import csv, json
+import collections
 import numpy as np
 import helper as hl
 # IMPROVEMENT: Maybe using Pandas library could be good to ease aggregations computation (i.e. sum over ZIP)
@@ -21,11 +22,11 @@ input_path, output_zip_path, output_date_path = str(sys.argv[1]), str(sys.argv[2
 linecount = hl.line_count(input_path)
 
 # One output write every N records
-write_freq = 50000
+write_freq = 500000
 
 
 buffer_list = []
-buffer_dict, zip_dict, date_dict = dict(), dict(), dict()
+buffer_dict, zip_dict, date_dict = collections.OrderedDict(), collections.OrderedDict(), collections.OrderedDict()
 
 # === Looping over the input file ===
 
@@ -77,16 +78,24 @@ with open(input_path, 'r') as inputf:
 
 				# Testing existence of the ZIP output file primary key (CMTE_ID, ZIP_CODE)
 				# Using key by concatenating CMTE_ID & ZIP_CODE rather than using nested dictionnaries
+				# Using collections.OrderedDict to preserve the input file records order
 
 				zip_key = '|'.join([record['CMTE_ID'], record['ZIP_CODE']])
-				date_key = '|'.join([record['CMTE_ID'], record['TRANSACTION_DT']])
 
 				if not hl.keys_exists(zip_dict, zip_key):
 					zip_dict[zip_key] = {'RUN_LIST': [], 'RUN_MED': 0, 'TRA_COUNT': 0, 'TRA_SUM': 0}
 
 				# Testing existence of the DATE output file primary key (CMTE_ID, TRANSACTION_DT)
+				# This time storing right-format date and computing an alphabetical-sort-friendly key
+				alphabetical_sort_friendly_date = str(record['TRANSACTION_DT'][4:]) + str(record['TRANSACTION_DT'][:2]) +\
+												 str(record['TRANSACTION_DT'][2:4])
+				
+				date_key = '|'.join([record['CMTE_ID'], alphabetical_sort_friendly_date])
+				output_date_key = '|'.join([record['CMTE_ID'], record['TRANSACTION_DT']])
+
 				if not hl.keys_exists(date_dict, date_key):
-					date_dict[date_key] = {'RUN_LIST': [], 'RUN_MED': 0, 'TRA_COUNT': 0, 'TRA_SUM': 0}
+					date_dict[date_key] = {'RUN_LIST': [], 'RUN_MED': 0, 'TRA_COUNT': 0, 'TRA_SUM': 0,\
+					'OUTPUT_DATE_KEY': output_date_key}
 				
 
 				# Compute ZIP count and sum
@@ -110,12 +119,12 @@ with open(input_path, 'r') as inputf:
 			buffer_dict = {}
 			buffer_list = []
 			
-
+			date_dict = collections.OrderedDict(sorted(date_dict.items()))
 
 			for date_key in date_dict:
 				date_dict[date_key]['RUN_LIST'] = sorted(date_dict[date_key]['RUN_LIST'])
 				date_dict[date_key]['RUN_MED'] = int(round(np.median(date_dict[date_key]['RUN_LIST'])))
-				date_output_buffer_line = [date_key, date_dict[date_key]['RUN_MED'], date_dict[date_key]['TRA_COUNT'],\
+				date_output_buffer_line = [date_dict[date_key]['OUTPUT_DATE_KEY'], date_dict[date_key]['RUN_MED'], date_dict[date_key]['TRA_COUNT'],\
 				date_dict[date_key]['TRA_SUM']]
 				date_output_buffer.append(date_output_buffer_line)
 

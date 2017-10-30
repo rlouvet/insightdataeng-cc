@@ -20,3 +20,4 @@ kcachegrind ./profiling/profile_data.pyprof.stats
 - Use a lower-level langage than Python with better memory management (C++, Java, Scala)
 - Improve the buffers management
 - Write an enhanced 'median' function with cached data
+- Maybe leverage numpy.memmap to create a memory mapped array
