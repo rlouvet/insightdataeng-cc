@@ -8,10 +8,15 @@
 import sys, os
 import csv, json
 import collections
+import re
 import numpy as np
 import helper as hl
 # IMPROVEMENT: Maybe using Pandas library could be good to ease aggregations computation (i.e. sum over ZIP)
 # however the "append row to dataframe" seems not very performant compared to a Python native data structure
+
+# === Parameters
+write_freq = 500000  # One output write every N records
+zip_pattern = re.compile(r"^[0-9]{5}(?:[0-9]{4})?$")
 
 # === Reading input and output paths ===
 
@@ -20,9 +25,6 @@ input_path, output_zip_path, output_date_path = str(sys.argv[1]), str(sys.argv[2
 
 # Getting file lenght (total lines count)
 linecount = hl.line_count(input_path)
-
-# One output write every N records
-write_freq = 500000
 
 
 buffer_list = []
@@ -33,7 +35,7 @@ buffer_dict, zip_dict, date_dict = collections.OrderedDict(), collections.Ordere
 with open(input_path, 'r') as inputf:
 
 	for line_num, line in enumerate(inputf):
-		print("Processing line: " + str(line_num))
+		#print("Processing line: " + str(line_num))
 
 		#ASSUMPTION: we assume that each line has the expected format
 		#i.e. 21 pipe-separated values with right type (int / str) and right mapping
@@ -41,17 +43,27 @@ with open(input_path, 'r') as inputf:
 		CMTE_ID, ZIP_CODE, TRANSACTION_DT, TRANSACTION_AMT, OTHER_ID = \
 			line[0], line[10], line[13], line[14], line[15]
 		
+		# === Inuput fields validation
+
 		# Detecting invalid ZIP code field content, but this is not triggering record-skip
-		if len(ZIP_CODE) < 5:
-			FLAG_INVALID_ZIPCODE = True
+		if zip_pattern.match(ZIP_CODE) == None:
+			FLAG_VALID_ZIPCODE = False
+		else:
+			FLAG_VALID_ZIPCODE = True
+
+		# Detecting invalid TRANSACTION_DT field content, but this is not triggering record-skip
+		FLAG_VALID_TRANSACTION_DT = hl.valid_date(TRANSACTION_DT)
+
+		# Detecting if both ZIP code and date are invalid
+		ZIP_AND_DATE_INVALID = (not FLAG_VALID_ZIPCODE) and (not FLAG_VALID_TRANSACTION_DT)
 
 		# if critical fields are empty or OTHER_ID not empty then skip the record
-		if CMTE_ID == '' or TRANSACTION_AMT == '' or not (OTHER_ID == ''):
+		if CMTE_ID == '' or TRANSACTION_AMT == '' or (not (OTHER_ID == '')) or (ZIP_AND_DATE_INVALID == True):
 			continue
 
 		buffer_dict = {'CMTE_ID': str(CMTE_ID), 'ZIP_CODE': str(ZIP_CODE[:5]), \
-		'TRANSACTION_DT':str(TRANSACTION_DT), 'TRANSACTION_AMT':int(TRANSACTION_AMT), \
-		'OTHER_ID':OTHER_ID}
+		'TRANSACTION_DT':str(TRANSACTION_DT), 'TRANSACTION_AMT':int(TRANSACTION_AMT), 'OTHER_ID':OTHER_ID,\
+		'FLAG_VALID_ZIPCODE': FLAG_VALID_ZIPCODE, 'FLAG_VALID_TRANSACTION_DT': FLAG_VALID_TRANSACTION_DT}
 
 		buffer_list.append(buffer_dict)
 
@@ -64,9 +76,9 @@ with open(input_path, 'r') as inputf:
 
 
 			# === Computing agregations === TODO: Watchout for the indentation here!
-			avancement = int(float(line_num) / float(linecount) * 100)
-			print(">>(" + str(avancement) + "%)>>Computing agregations")
-			print(">>current buffer_list size is: " + str(len(buffer_list)))
+			#avancement = int(float(line_num) / float(linecount) * 100)
+			#print(">>(" + str(avancement) + "%)>>Computing agregations")
+			#print(">>current buffer_list size is: " + str(len(buffer_list)))
 
 			# First add the records from the parsing buffer then compute and finally dump in output buffer
 			zip_output_buffer_line = []
@@ -76,48 +88,62 @@ with open(input_path, 'r') as inputf:
 
 			for record in buffer_list:
 
-				# Testing existence of the ZIP output file primary key (CMTE_ID, ZIP_CODE)
-				# Using key by concatenating CMTE_ID & ZIP_CODE rather than using nested dictionnaries
-				# Using collections.OrderedDict to preserve the input file records order
+				# === ZIP ===
 
-				zip_key = '|'.join([record['CMTE_ID'], record['ZIP_CODE']])
+				# Skip if ZIP code is not valid
+				if record['FLAG_VALID_ZIPCODE'] == True:
 
-				if not hl.keys_exists(zip_dict, zip_key):
-					zip_dict[zip_key] = {'RUN_LIST': [], 'RUN_MED': 0, 'TRA_COUNT': 0, 'TRA_SUM': 0}
+					# Testing existence of the ZIP output file primary key (CMTE_ID, ZIP_CODE)
+					# Using key by concatenating CMTE_ID & ZIP_CODE rather than using nested dictionnaries
+					# Using collections.OrderedDict to preserve the input file records order
 
-				# Testing existence of the DATE output file primary key (CMTE_ID, TRANSACTION_DT)
-				# This time storing right-format date and computing an alphabetical-sort-friendly key
-				alphabetical_sort_friendly_date = str(record['TRANSACTION_DT'][4:]) + str(record['TRANSACTION_DT'][:2]) +\
-												 str(record['TRANSACTION_DT'][2:4])
-				
-				date_key = '|'.join([record['CMTE_ID'], alphabetical_sort_friendly_date])
-				output_date_key = '|'.join([record['CMTE_ID'], record['TRANSACTION_DT']])
+					zip_key = '|'.join([record['CMTE_ID'], record['ZIP_CODE']])
 
-				if not hl.keys_exists(date_dict, date_key):
-					date_dict[date_key] = {'RUN_LIST': [], 'RUN_MED': 0, 'TRA_COUNT': 0, 'TRA_SUM': 0,\
-					'OUTPUT_DATE_KEY': output_date_key}
-				
+					if not hl.keys_exists(zip_dict, zip_key):
+						zip_dict[zip_key] = {'RUN_LIST': [], 'RUN_MED': 0, 'TRA_COUNT': 0, 'TRA_SUM': 0}
+					
 
-				# Compute ZIP count and sum
-				zip_dict[zip_key]['RUN_LIST'].append(record['TRANSACTION_AMT'])
-				zip_dict[zip_key]['RUN_LIST'] = sorted(zip_dict[zip_key]['RUN_LIST'])
-				zip_dict[zip_key]['RUN_MED'] = int(round(np.median(zip_dict[zip_key]['RUN_LIST'])))
-				zip_dict[zip_key]['TRA_COUNT'] += 1
-				zip_dict[zip_key]['TRA_SUM'] += record['TRANSACTION_AMT']
+					# Compute ZIP count and sum
+					zip_dict[zip_key]['RUN_LIST'].append(record['TRANSACTION_AMT'])
+					zip_dict[zip_key]['RUN_LIST'] = sorted(zip_dict[zip_key]['RUN_LIST'])
+					zip_dict[zip_key]['RUN_MED'] = int(round(np.median(zip_dict[zip_key]['RUN_LIST'])))
+					zip_dict[zip_key]['TRA_COUNT'] += 1
+					zip_dict[zip_key]['TRA_SUM'] += record['TRANSACTION_AMT']
 
-				# Compute DATE count and sum
-				date_dict[date_key]['RUN_LIST'].append(record['TRANSACTION_AMT'])
-				date_dict[date_key]['TRA_COUNT'] += 1
-				date_dict[date_key]['TRA_SUM'] += record['TRANSACTION_AMT']
 
-				# Writing to output buffer
-				zip_output_buffer_line = [zip_key, zip_dict[zip_key]['RUN_MED'], zip_dict[zip_key]['TRA_COUNT'],\
-				zip_dict[zip_key]['TRA_SUM']]
-				zip_output_buffer.append(zip_output_buffer_line)
+					# Writing to output buffer
+					zip_output_buffer_line = [zip_key, zip_dict[zip_key]['RUN_MED'], zip_dict[zip_key]['TRA_COUNT'],\
+					zip_dict[zip_key]['TRA_SUM']]
+					zip_output_buffer.append(zip_output_buffer_line)
+
+				# === DATE ===
+
+				# Skip if DATE is not valid
+				if record['FLAG_VALID_TRANSACTION_DT'] == True:
+
+					# Testing existence of the DATE output file primary key (CMTE_ID, TRANSACTION_DT)
+					# This time storing right-format date and computing an alphabetical-sort-friendly key
+					alphabetical_sort_friendly_date = str(record['TRANSACTION_DT'][4:]) + str(record['TRANSACTION_DT'][:2]) +\
+													 str(record['TRANSACTION_DT'][2:4])
+					
+					date_key = '|'.join([record['CMTE_ID'], alphabetical_sort_friendly_date])
+					output_date_key = '|'.join([record['CMTE_ID'], record['TRANSACTION_DT']])
+
+					if not hl.keys_exists(date_dict, date_key):
+						date_dict[date_key] = {'RUN_LIST': [], 'RUN_MED': 0, 'TRA_COUNT': 0, 'TRA_SUM': 0,\
+						'OUTPUT_DATE_KEY': output_date_key}
+
+
+					# Compute DATE count and sum
+					date_dict[date_key]['RUN_LIST'].append(record['TRANSACTION_AMT'])
+					date_dict[date_key]['TRA_COUNT'] += 1
+					date_dict[date_key]['TRA_SUM'] += record['TRANSACTION_AMT']
+
 
 			# Empy buffer
 			buffer_dict = {}
 			buffer_list = []
+			
 			
 			date_dict = collections.OrderedDict(sorted(date_dict.items()))
 

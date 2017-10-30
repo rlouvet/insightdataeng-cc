@@ -1,6 +1,14 @@
 #!/usr/bin/env python
 # File with helper functions
 import collections
+import datetime
+
+def valid_date(date_text):
+    try:
+        datetime.datetime.strptime(date_text, '%m%d%Y')
+    except ValueError:
+        return False
+    return True
 
 def line_count(fname):
     with open(fname) as f:
