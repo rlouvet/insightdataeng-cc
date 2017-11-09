@@ -15,7 +15,7 @@ import bufferproc as bp
 # however the "append row to dataframe" seems not very performant compared to a Python native data structure
 
 # === Parameters
-write_freq = 500000  # One output write every N records
+write_freq = 500000  # One output write every N records, should be dimensionned according to your machine
 zip_pattern = re.compile(r"^[0-9]{5}(?:[0-9]{4})?$")
 
 # === Reading input and output paths ===
